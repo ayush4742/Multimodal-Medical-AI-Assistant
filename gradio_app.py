@@ -7,15 +7,13 @@
 import os
 import gradio as gr
 from dotenv import load_dotenv
+from core.conversation import clear_history
+from core.consultation_manager import consultation_manager
 
 load_dotenv()
 
-from report_generator import generate_medical_report
-from medical_triage import analyze_severity   # <-- NEW
+from core.doctor_engine import doctor_engine
 
-from brain_of_the_doctor import encode_image, analyze_image_with_query
-from voice_of_the_patient import record_audio, transcribe_with_groq
-from voice_of_the_doctor import text_to_speech_with_gtts
 
 # Conversation Memory
 conversation_history = []
@@ -26,130 +24,266 @@ If you make a differential, suggest some remedies for them. Donot add any number
 your response. Your response should be in one long paragraph. Also always answer as if you are answering to a real person.
 Donot say 'In the image I see' but say 'With what I see, I think you have ....'
 Dont respond as an AI model in markdown, your answer should mimic that of an actual doctor not an AI bot,
-Keep your answer concise (max 2 sentences). No preamble, start your answer right away please"""
+Keep your answer concise (max 2 sentences). No preamble, start your answer right away please. make the interface like gpt"""
 
 
-def process_inputs(audio_filepath, image_filepath):
 
-    global conversation_history
-
-    # Safety Check
-    if audio_filepath is None:
-        return (
-            "Please record your voice first.",
-            "",
-            None,
-            None
-        )
-
-    # Speech → Text
-    speech_to_text_output = transcribe_with_groq(
-        GROQ_API_KEY=os.environ.get("GROQ_API_KEY"),
-        audio_filepath=audio_filepath,
-        stt_model="whisper-large-v3"
-    )
-
-    # Store patient's message
-    conversation_history.append(
-        f"Patient: {speech_to_text_output}"
-    )
-
-    # Keep last 6 messages
-    conversation_history = conversation_history[-6:]
-
-    history = "\n".join(conversation_history)
-
-    prompt = f"""
-Previous Conversation:
-{history}
-
-Current Patient Message:
-{speech_to_text_output}
-
-{system_prompt}
-"""
-
-    # Vision Analysis
-    if image_filepath:
-
-        doctor_response = analyze_image_with_query(
-            query=prompt,
-            encoded_image=encode_image(image_filepath),
-            model="meta-llama/llama-4-scout-17b-16e-instruct"
-        )
-
-    else:
-
-        doctor_response = "No image provided for me to analyze."
-
-    # ------------------ NEW FEATURE ------------------
-
-    severity, advice = analyze_severity(
-        speech_to_text_output
-    )
-
-    doctor_response += f"""
-
-----------------------------------------
-
-Severity : {severity}
-
-Recommendation :
-{advice}
-"""
-
-    # -------------------------------------------------
-
-    # Save doctor's response in memory
-    conversation_history.append(
-        f"Doctor: {doctor_response}"
-    )
-
-    # Generate PDF Report
-    report_path = generate_medical_report(
-        speech_to_text_output,
-        doctor_response
-    )
-
-    # Text → Speech
-    text_to_speech_with_gtts(
-        input_text=doctor_response,
-        output_filepath="final.mp3"
-    )
-
-    return (
-        speech_to_text_output,
-        doctor_response,
-        "final.mp3",
-        report_path
-    )
 
 
 # ---------------- UI ---------------- #
+# -----------------------------
+# Chat Handler
+# -----------------------------
 
-iface = gr.Interface(
-    fn=process_inputs,
+def send_message(
 
-    inputs=[
-        gr.Audio(
-            sources=["microphone"],
-            type="filepath"
-        ),
-        gr.Image(
-            type="filepath"
+    patient_text,
+
+    audio_filepath,
+
+    image_filepath,
+
+    history
+
+):
+
+    if history is None:
+
+        history = []
+
+    # -----------------------------
+    # Validation
+    # -----------------------------
+
+    if (
+
+        (patient_text is None or patient_text.strip() == "")
+
+        and
+
+        audio_filepath is None
+
+    ):
+
+        return (
+
+            history,
+
+            history,
+
+            "",
+
+            None,
+
+            None
+
         )
-    ],
 
-    outputs=[
-        gr.Textbox(label="Speech to Text"),
-        gr.Textbox(label="Doctor's Response"),
-        gr.Audio(label="Doctor Voice"),
-        gr.File(label="Medical Report")
-    ],
+    # -----------------------------
+    # Doctor Engine
+    # -----------------------------
 
-    title="AI Doctor with Vision and Voice"
+    result = doctor_engine.run(
+
+        patient_text=patient_text,
+
+        audio_path=audio_filepath,
+
+        image_path=image_filepath,
+
+        system_prompt=system_prompt
+
+    )
+    print("=" * 50)
+    print(result)
+    print(type(result))
+    print("=" * 50)
+
+    # -----------------------------
+    # Patient Bubble
+    # -----------------------------
+
+    history.append(
+
+        {
+
+            "role": "user",
+
+            "content": result["patient"]
+
+        }
+
+    )
+
+    # -----------------------------
+    # Doctor Bubble
+    # -----------------------------
+
+    doctor_reply = result["doctor"]
+
+    if isinstance(doctor_reply, dict):
+        doctor_reply = doctor_reply.get("message", str(doctor_reply))
+
+    history.append(
+        {
+            "role": "assistant",
+            "content": doctor_reply
+        }
+    )
+
+    # -----------------------------
+    # Return
+    # -----------------------------
+
+    return (
+
+        history,
+        history,
+        "",
+        result.get("audio"),
+        result.get("report")
+
+    )
+
+
+# -----------------------------
+# Clear Chat
+# -----------------------------
+
+def clear_chat():
+
+    # Backend Memory Reset
+    clear_history()
+
+    consultation_manager.reset()
+
+    return (
+
+        [],
+
+        [],
+
+        "",
+
+        None,
+
+        None
+
+    )
+# -----------------------------
+# ChatGPT Style UI
+# -----------------------------
+
+with gr.Blocks(
+    title="AI Doctor"
+) as demo:
+
+    gr.Markdown(
+        "# 🩺 AI Doctor"
+    )
+
+    chatbot = gr.Chatbot(
+        label="Conversation",
+        height=500,
+        type="messages"
+    )
+
+    chat_state = gr.State([])
+
+    with gr.Row():
+
+        patient_text = gr.Textbox(
+            label="Patient Message",
+            placeholder="Type your symptoms...",
+            lines=2,
+            scale=5
+        )
+
+        send_btn = gr.Button(
+            "Send",
+            variant="primary",
+            scale=1
+        )
+
+    with gr.Row():
+
+        audio_input = gr.Audio(
+            sources=["microphone"],
+            type="filepath",
+            label="Voice"
+        )
+
+        image_input = gr.Image(
+            type="filepath",
+            label="Medical Image"
+        )
+
+    with gr.Row():
+
+        doctor_voice = gr.Audio(
+            label="Doctor Voice",
+            interactive=False
+        )
+
+        medical_report = gr.File(
+            label="Medical Report"
+        )
+
+    clear_btn = gr.Button("Clear")
+
+    # -----------------------------
+    # Events
+    # -----------------------------
+
+    send_btn.click(
+        fn=send_message,
+        inputs=[
+            patient_text,
+            audio_input,
+            image_input,
+            chat_state
+        ],
+        outputs=[
+            chatbot,
+            chat_state,
+            patient_text,
+            doctor_voice,
+            medical_report
+        ]
+    )
+
+    patient_text.submit(
+        fn=send_message,
+        inputs=[
+            patient_text,
+            audio_input,
+            image_input,
+            chat_state
+        ],
+        outputs=[
+            chatbot,
+            chat_state,
+            patient_text,
+            doctor_voice,
+            medical_report
+        ]
+    )
+
+    clear_btn.click(
+        fn=clear_chat,
+        outputs=[
+            chatbot,
+            chat_state,
+            patient_text,
+            doctor_voice,
+            medical_report
+        ]
+    )
+
+# -----------------------------
+# Launch
+# -----------------------------
+
+demo.launch(
+    debug=True
 )
-
-iface.launch(debug=True)
-
-# http://127.0.0.1:7860
