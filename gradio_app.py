@@ -6,15 +6,21 @@
 
 import os
 import gradio as gr
-from dotenv import load_dotenv
-from core.conversation import clear_history
-from core.consultation_manager import consultation_manager
+print("1. Starting")
 
-load_dotenv()
+from dotenv import load_dotenv
+print("2. dotenv loaded")
+
+from core.conversation import clear_history
+print("3. conversation loaded")
+
+from core.consultation_manager import consultation_manager
+print("4. consultation manager loaded")
 
 from core.doctor_engine import doctor_engine
+print("5. doctor engine loaded")
 
-
+load_dotenv()
 # Conversation Memory
 conversation_history = []
 
