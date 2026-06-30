@@ -270,8 +270,8 @@ MEDICAL KNOWLEDGE
         recommendation = severity_result["recommendation"]
 
         doctor_response += f"""
+The medical report is now available. Please download it for your records.
 
-----------------------------------------
 
 Severity : {severity}
 
