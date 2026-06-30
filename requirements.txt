@@ -44,3 +44,4 @@ reportlab==4.2.5
 python-docx==1.1.2
 
 pydantic==2.10.5
+elevenlabs==1.50.3
