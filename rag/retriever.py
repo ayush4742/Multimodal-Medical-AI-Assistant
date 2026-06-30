@@ -1,5 +1,3 @@
-import os
-
 from langchain_community.vectorstores import FAISS
 from langchain_community.embeddings import HuggingFaceEmbeddings
 
@@ -28,30 +26,38 @@ class MedicalRetriever:
 
     def retrieve(self, query, k=4):
 
-        docs = self.db.similarity_search(
-            query,
-            k=k
-        )
+        docs = self.db.similarity_search(query, k=k)
 
         context = ""
 
         for i, doc in enumerate(docs, start=1):
-
             context += f"\n\n========== Medical Context {i} ==========\n"
-
             context += doc.page_content
 
         return context
 
 
-retriever = MedicalRetriever()
+# Lazy Loading
+retriever = None
+
+
+def get_retriever():
+    global retriever
+
+    if retriever is None:
+        try:
+            retriever = MedicalRetriever()
+        except Exception:
+            retriever = None
+            raise
+
+    return retriever
 
 
 def retrieve_medical_context(query):
-    return retriever.retrieve(query)
+    return get_retriever().retrieve(query)
 
 
-# Testing
 if __name__ == "__main__":
 
     query = "I have itchy red skin with rashes."
