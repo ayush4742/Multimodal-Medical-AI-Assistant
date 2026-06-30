@@ -576,6 +576,63 @@ body, .gradio-container {
 }
 
 }
+
+/* ===========================
+   Mobile Responsive
+=========================== */
+
+@media (max-width:768px){
+
+#page-root{
+    flex-direction:column !important;
+}
+
+#sidebar{
+    width:100% !important;
+    min-width:100% !important;
+    max-width:100% !important;
+    height:auto !important;
+    border-right:none !important;
+    border-bottom:1px solid #1f2937;
+    padding:16px !important;
+}
+
+#main-col{
+    width:100% !important;
+}
+
+#chat-wrapper{
+    height:55vh !important;
+}
+
+#input-bar{
+    flex-wrap:wrap !important;
+    height:auto !important;
+}
+
+#patient-textbox{
+    width:100% !important;
+}
+
+#send-btn{
+    width:100% !important;
+    margin-top:10px;
+}
+
+#voice-image-row{
+    flex-direction:column !important;
+}
+
+#voice-image-row > div{
+    width:100% !important;
+}
+
+.bottom-card{
+    width:100% !important;
+    margin-top:15px;
+}
+
+}
 """
 
 with gr.Blocks(
